@@ -8,3 +8,12 @@ Server usage:
     server.start();
 
   $ node server.js
+
+Client usage:
+  client.js
+    var hydranode = require('./src/hydranode');
+    new client.Client('localhost', 8124, function() {
+      /* do stuff */
+    });
+
+  $ node client.js

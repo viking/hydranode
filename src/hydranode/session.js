@@ -1,7 +1,7 @@
 var sys = require('sys');
 var job = require('./job');
 
-exports.Session = function(parent, stream) {
+var Session = function(parent, stream) {
   var self = this;
   stream.setEncoding('utf8');
   stream.addListener('data', function(data) { self.process(data) });
@@ -12,7 +12,7 @@ exports.Session = function(parent, stream) {
   this.data = null;
 }
 
-exports.Session.prototype = {
+Session.prototype = {
   commands: {
     SCHEDULE: {
       multiline: true,
@@ -70,7 +70,7 @@ exports.Session.prototype = {
     this.stream.write("ERROR: "+msg+"\n");
   },
   process: function(data) {
-    var message = data.replace(/\r\n$/, "");
+    var message = data.replace(/[\r\n]*$/, "");
     if (this.command) {
       /* multi-line command in progress */
       if (message.match(/^.$/)) {
@@ -145,3 +145,5 @@ exports.Session.prototype = {
     }
   }
 }
+
+exports.Session = Session;

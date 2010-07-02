@@ -1,3 +1,4 @@
+var sys = require('sys');
 var net = require('net');
 var session = require('./session');
 
