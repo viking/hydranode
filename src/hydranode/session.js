@@ -39,6 +39,25 @@ exports.Session.prototype = {
         });
       }
     },
+    JOB: {
+      arguments: {
+        job_id: { type: 'integer', required: true }
+      },
+      callback: function(data) {
+        var self = this;
+        job.Job.find(data.job_id, function(record) {
+          if (record == null)
+            return self.error("Invalid job.");
+
+          var lines = [];
+          for (key in record.attribs) {
+            lines.push(key + ": " + record.attribs[key]);
+          }
+          lines.push('.', '');
+          self.stream.write(lines.join("\n"));
+        });
+      }
+    },
     QUIT: {
       callback: function() {
         this.stream.end();
@@ -75,7 +94,7 @@ exports.Session.prototype = {
 
       var md = message.match(/^\s*(\w+):\s*(.+)$/);
       if (!md)
-        return this.error("Invalid argument format");
+        return this.error("Invalid argument format.");
 
       var key = md[1];
       var value = md[2];
@@ -86,7 +105,7 @@ exports.Session.prototype = {
     }
     else {
       var parts = message.split(/\s+/);
-      this.command = this.commands[parts.pop().toUpperCase()];
+      this.command = this.commands[parts.shift().toUpperCase()];
       if (this.command) {
         /* validate arguments */
         if (this.command.multiline) {
@@ -97,20 +116,30 @@ exports.Session.prototype = {
         }
         else {
           /* single-line command */
-          var argnum = this.command.arguments ? this.command.arguments.length : 0;
-          if (parts.length != argnum) {
-            return this.error("Incorrect number of arguments ("+parts.length+" for "+arglen+")");
+          var args = {};
+          var index = 0;
+          var invalid = false;
+          for (key in (this.command.arguments || {})) {
+            if (index >= parts.length) {
+              invalid = true;
+            }
+            else {
+              args[key] = parts[index];
+            }
+            index++;
           }
 
-          if (argnum == 0) {
-            this.command.callback.call(this);
+          if (invalid) {
+            return this.error("Incorrect number of arguments ("+parts.length+" for "+index+")");
           }
-          else {
-            // TODO
-          }
+          this.command.callback.apply(this, (index == 0 ? [] : [args]));
+          this.command = null;
         }
       }
       else {
+        for (key in this.commands) {
+          this.stream.write(key + "\n");
+        }
         this.stream.write("Invalid command: "+parts[0]+"\n");
       }
     }

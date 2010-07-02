@@ -37,6 +37,30 @@ Job.all = function(callback) {
   });
 }
 
+Job.find = function(id, callback) {
+  pool.get(function(db) {
+    var cmd = db.execute("SELECT COUNT(*) FROM jobs WHERE id = ?", [id]);
+    cmd.addListener('row', function(r) {
+      if (r[0] == 0) {
+        callback(null);
+        return;
+      }
+
+      cmd = db.execute("SELECT id, program, arguments, description, owner_ip FROM jobs WHERE id = ?", [id]);
+      cmd.addListener('row', function(r) {
+        var record = new Job({
+          id: r[0],
+          program: r[1],
+          arguments: r[2],
+          description: r[3],
+          owner_ip: r[4]
+        });
+        callback(record);
+      });
+    });
+  });
+}
+
 Job.prototype = {
   save: function() {
     var self = this;
