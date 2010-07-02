@@ -1,0 +1,6 @@
+[submodule "vendor/nest"]
+	path = vendor/nest
+	url = git://github.com/chrisabird/nest.git
+[submodule "vendor/mysql"]
+	path = vendor/mysql
+	url = git://github.com/sidorares/nodejs-mysql-native.git
