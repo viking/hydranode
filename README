@@ -1,0 +1,10 @@
+Hydranode
+=========
+
+Server usage:
+  server.js
+    var hydranode = require('./src/hydranode');
+    var server = new hydranode.server.Server;
+    server.start();
+
+  $ node server.js
