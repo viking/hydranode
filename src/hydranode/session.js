@@ -32,7 +32,7 @@ Session.prototype = {
     LIST: {
       callback: function() {
         var self = this;
-        job.Job.find({ taken_by: null }).all(function(records) {
+        job.Job.find({ taker: null }).all(function(records) {
           for (var i = 0; i < records.length; i++) {
             self.stream.write(records[i]._id.toHexString()+"\n");
           }
@@ -51,21 +51,23 @@ Session.prototype = {
           if (record == null)
             return self.error("Invalid job.");
 
-          var lines = [
-            "Program: " + record.program,
-            "Arguments: " + record.arguments,
-          ];
-          if (record.description)
-            lines.push("Description: " + record.description);
-
-          lines.push('.', '');
-          self.stream.write(lines.join("\n"));
+          /*
+            var lines = [
+              "Program: " + record.program,
+              "Arguments: " + record.arguments,
+            ];
+            if (record.description)
+              lines.push("Description: " + record.description);
+            lines.push('.', '');
+            self.stream.write(lines.join("\n"));
+          */
+          self.stream.write(record.toJSON()+"\n");
         });
       }
     },
     TAKE: {
       arguments: {
-        job_id: { type: 'integer', required: true }
+        job_id: { type: 'string', required: true }
       },
       callback: function(data) {
         var self = this;
@@ -73,12 +75,25 @@ Session.prototype = {
         job.Job.findById(_id, function(record) {
           if (record == null)
             return self.error("Invalid job.");
+          if (record.taker)
+            return self.error("Job already taken.");
 
           record.taker = self.stream.remoteAddress;
           record.started_at = new Date();
           record.save();
           self.stream.write("OK\n");
         });
+      }
+    },
+    FINISH: {
+      multiline: true,
+      arguments: {
+        job_id: { type: 'string', required: true },
+        length: { type: 'integer', required: true },
+        output: { type: 'binary', required: true }
+      },
+      callback: function(data) {
+        // TODO
       }
     },
     QUIT: {
@@ -119,7 +134,7 @@ Session.prototype = {
       if (!md)
         return this.error("Invalid argument format.");
 
-      var key = md[1];
+      var key = md[1].toLowerCase();
       var value = md[2];
       if (!this.command.arguments[key])
         return this.error("Invalid key: "+key);
