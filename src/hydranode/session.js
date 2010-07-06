@@ -1,5 +1,6 @@
 var sys = require('sys');
 var job = require('./job');
+var ObjectID = require('mongodb').ObjectID
 
 var Session = function(parent, stream) {
   var self = this;
@@ -22,7 +23,7 @@ Session.prototype = {
         description: { type: 'string' }
       },
       callback: function(data) {
-        data.created_by = this.stream.remoteAddress;
+        data.owner = this.stream.remoteAddress;
         var record = new job.Job(data);
         record.save();
         this.stream.write("OK\n");
@@ -31,9 +32,9 @@ Session.prototype = {
     LIST: {
       callback: function() {
         var self = this;
-        job.Job.untaken(function(records) {
+        job.Job.find({ taken_by: null }).all(function(records) {
           for (var i = 0; i < records.length; i++) {
-            self.stream.write(records[i].attribs.id+"\n");
+            self.stream.write(records[i]._id.toHexString()+"\n");
           }
           self.stream.write(".\n");
         });
@@ -41,18 +42,22 @@ Session.prototype = {
     },
     JOB: {
       arguments: {
-        job_id: { type: 'integer', required: true }
+        job_id: { type: 'string', required: true }
       },
       callback: function(data) {
         var self = this;
-        job.Job.find(data.job_id, function(record) {
+        var _id = ObjectID.createFromHexString(data.job_id);
+        job.Job.findById(_id, function(record) {
           if (record == null)
             return self.error("Invalid job.");
 
-          var lines = [];
-          for (key in record.attribs) {
-            lines.push(key + ": " + record.attribs[key]);
-          }
+          var lines = [
+            "Program: " + record.program,
+            "Arguments: " + record.arguments,
+          ];
+          if (record.description)
+            lines.push("Description: " + record.description);
+
           lines.push('.', '');
           self.stream.write(lines.join("\n"));
         });
@@ -64,10 +69,14 @@ Session.prototype = {
       },
       callback: function(data) {
         var self = this;
-        job.Job.find(data.job_id, function(record) {
+        var _id = ObjectID.createFromHexString(data.job_id);
+        job.Job.findById(_id, function(record) {
           if (record == null)
             return self.error("Invalid job.");
-          record.take(self.stream.remoteAddress);
+
+          record.taker = self.stream.remoteAddress;
+          record.started_at = new Date();
+          record.save();
           self.stream.write("OK\n");
         });
       }
