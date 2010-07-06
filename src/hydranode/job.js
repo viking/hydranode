@@ -20,7 +20,7 @@ Job.db = function(callback) {
   Job.pool.get(callback);
 };
 
-Job.columns = ["id", "program", "arguments", "description", "owner_ip"];
+Job.columns = ["id", "program", "arguments", "description", "created_by", "taken_by", "result"];
 
 function instantiate(row) {
   var attribs = {};
@@ -30,13 +30,17 @@ function instantiate(row) {
   return new Job(attribs);
 }
 
-Job.all = function(callback) {
+Job.untaken = function(callback) {
   var records = [];
   Job.db(function(db) {
-    var cmd = db.execute("SELECT COUNT(*) FROM jobs");
+    var cmd = db.execute("SELECT COUNT(*) FROM jobs WHERE taken_by IS NULL");
     cmd.addListener('row', function(r) {
       var count = r[0];
-      cmd = db.execute("SELECT "+Job.columns.join(", ")+" FROM jobs");
+      if (count == 0) {
+        callback([]);
+        return;
+      }
+      cmd = db.execute("SELECT "+Job.columns.join(", ")+" FROM jobs WHERE taken_by IS NULL");
       cmd.addListener('row', function(r) {
         records.push(instantiate(r));
         if (records.length == count) {
@@ -66,16 +70,50 @@ Job.find = function(id, callback) {
 };
 
 Job.prototype = {
-  save: function() {
+  save: function(attribs) {
     var self = this;
+    if (typeof(attribs) == 'undefined')
+      attribs = self.attribs;
+
     Job.db(function(db) {
-      var values = [
-        self.attribs.program,
-        self.attribs.arguments || '',
-        self.attribs.description || '',
-        self.attribs.owner_ip
-      ];
-      db.execute("INSERT INTO jobs (program, arguments, description, owner_ip, created_at) VALUES(?, ?, ?, ?, NOW())", values);
+      var i, values = [], insert = !self.attribs.id;
+      var sql = insert ?
+        "INSERT INTO jobs SET created_at = NOW()" :
+        "UPDATE jobs SET updated_at = NOW()";
+
+      var col;
+      for (col in attribs) {
+        var val = attribs[col];
+        if (col == "id")
+          continue;
+
+        if (typeof(val) != 'undefined') {
+          sql += ", " + col + " = ";
+          if (val == null) {
+            sql += "NULL";
+          }
+          else if (val.match(/\(\)$/)) {
+            sql += val;
+          }
+          else {
+            sql += "?";
+            values.push(val);
+          }
+        }
+      }
+      if (!insert) {
+        sql += " WHERE id = ?";
+        values.push(self.attribs.id);
+      }
+      sys.puts(sys.inspect(sql));
+      sys.puts(values);
+      db.execute(sql, values);
+    });
+  },
+  take: function(taker) {
+    this.save({
+      taken_by: taker,
+      taken_at: "NOW()"
     });
   }
 };

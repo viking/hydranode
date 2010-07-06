@@ -22,7 +22,7 @@ Session.prototype = {
         description: { type: 'string' }
       },
       callback: function(data) {
-        data.owner_ip = this.stream.remoteAddress;
+        data.created_by = this.stream.remoteAddress;
         var record = new job.Job(data);
         record.save();
         this.stream.write("OK\n");
@@ -31,7 +31,7 @@ Session.prototype = {
     LIST: {
       callback: function() {
         var self = this;
-        job.Job.all(function(records) {
+        job.Job.untaken(function(records) {
           for (var i = 0; i < records.length; i++) {
             self.stream.write(records[i].attribs.id+"\n");
           }
@@ -55,6 +55,20 @@ Session.prototype = {
           }
           lines.push('.', '');
           self.stream.write(lines.join("\n"));
+        });
+      }
+    },
+    TAKE: {
+      arguments: {
+        job_id: { type: 'integer', required: true }
+      },
+      callback: function(data) {
+        var self = this;
+        job.Job.find(data.job_id, function(record) {
+          if (record == null)
+            return self.error("Invalid job.");
+          record.take(self.stream.remoteAddress);
+          self.stream.write("OK\n");
         });
       }
     },
@@ -105,8 +119,9 @@ Session.prototype = {
     }
     else {
       var parts = message.split(/\s+/);
-      this.command = this.commands[parts.shift().toUpperCase()];
+      this.command = this.commands[parts[0].toUpperCase()];
       if (this.command) {
+        parts.shift();
         /* validate arguments */
         if (this.command.multiline) {
           if (parts.length > 0) {
