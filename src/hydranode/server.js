@@ -14,4 +14,3 @@ exports.Server.prototype = {
     this.server.listen(8124, 'localhost');
   },
 }
-
